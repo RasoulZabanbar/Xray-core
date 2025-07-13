@@ -11,6 +11,7 @@ import (
 	"github.com/xtls/xray-core/common/buf"
 	c "github.com/xtls/xray-core/common/ctx"
 	"github.com/xtls/xray-core/common/errors"
+	"github.com/xtls/xray-core/common/httpcheck"
 	"github.com/xtls/xray-core/common/net"
 	"github.com/xtls/xray-core/common/serial"
 	"github.com/xtls/xray-core/common/session"
@@ -44,6 +45,7 @@ type tcpWorker struct {
 	sniffingConfig  *proxyman.SniffingConfig
 	uplinkCounter   stats.Counter
 	downlinkCounter stats.Counter
+	httpChecker     *httpcheck.Checker
 
 	hub internet.Listener
 
@@ -61,6 +63,18 @@ func (w *tcpWorker) callback(conn stat.Connection) {
 	ctx, cancel := context.WithCancel(w.ctx)
 	sid := session.NewID()
 	ctx = c.ContextWithID(ctx, sid)
+
+	// HTTP check before processing connection
+	if w.httpChecker != nil {
+		remoteAddr := conn.RemoteAddr().String()
+		if err := w.httpChecker.CheckConnection(ctx, remoteAddr); err != nil {
+			errors.LogInfoInner(ctx, err, "HTTP check failed, rejecting connection from ", remoteAddr)
+			cancel()
+			conn.Close()
+			return
+		}
+		errors.LogInfoInner(ctx, nil, "HTTP check passed for connection from ", remoteAddr)
+	}
 
 	outbounds := []*session.Outbound{{}}
 	if w.recvOrigDest {

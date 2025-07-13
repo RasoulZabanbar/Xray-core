@@ -7,6 +7,7 @@ import (
 	"github.com/xtls/xray-core/common"
 	"github.com/xtls/xray-core/common/dice"
 	"github.com/xtls/xray-core/common/errors"
+	"github.com/xtls/xray-core/common/httpcheck"
 	"github.com/xtls/xray-core/common/mux"
 	"github.com/xtls/xray-core/common/net"
 	"github.com/xtls/xray-core/common/serial"
@@ -117,6 +118,9 @@ func NewAlwaysOnInboundHandler(ctx context.Context, tag string, receiverConfig *
 				if net.HasNetwork(nl, net.Network_TCP) {
 					errors.LogDebug(ctx, "creating stream worker on ", address, ":", port)
 
+					// Create HTTP checker for connection validation
+					httpChecker := httpcheck.NewChecker(nil) // Using default config for now
+					
 					worker := &tcpWorker{
 						address:         address,
 						port:            net.Port(port),
@@ -128,6 +132,7 @@ func NewAlwaysOnInboundHandler(ctx context.Context, tag string, receiverConfig *
 						sniffingConfig:  receiverConfig.GetEffectiveSniffingSettings(),
 						uplinkCounter:   uplinkCounter,
 						downlinkCounter: downlinkCounter,
+						httpChecker:     httpChecker,
 						ctx:             ctx,
 					}
 					h.workers = append(h.workers, worker)
